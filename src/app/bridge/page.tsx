@@ -1,24 +1,21 @@
-// app/bridge/page.tsx
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
 import { linkBridge } from "@webview-bridge/web";
 import { z } from "zod";
 
-// 1) 관대한 스키마: 문자열/래핑까지 허용
+// 응답 스키마 정의
 const BaseSchema = z.object({
   network: z.string(),
   number: z.coerce.number().int().min(1),
 });
-const ResponseSchema = z.union([
-  BaseSchema,
-  z.object({ data: BaseSchema }),
-]);
+const ResponseSchema = z.union([BaseSchema, z.object({ data: BaseSchema })]);
 
 function normalizeRaw(raw: unknown): unknown {
-  // 문자열이면 JSON 파싱 시도
   if (typeof raw === "string") {
-    try { return JSON.parse(raw); } catch { /* 그대로 둠 */ }
+    try {
+      return JSON.parse(raw);
+    } catch {}
   }
   return raw;
 }
@@ -31,17 +28,22 @@ export default function BridgePage() {
 
   const bridgeRef = useRef<ReturnType<typeof linkBridge> | null>(null);
 
+  // 브릿지 초기화
   useEffect(() => {
     bridgeRef.current = linkBridge({
-    timeout: 5000,
+      timeout: 3000,
       onReady: () => {
-        console.log("[bridge] ready");
+        console.log("브릿지 준비 완료");
         setReady(true);
       },
     });
-    return () => { bridgeRef.current = null; };
+    return () => {
+      // 연결 실패 시 정리
+      bridgeRef.current = null;
+    };
   }, []);
 
+  // 브릿지 호출
   const onClick = async () => {
     if (!bridgeRef.current) {
       setStatus("브릿지가 아직 준비되지 않았습니다.");
@@ -50,38 +52,31 @@ export default function BridgePage() {
 
     setStatus("네이티브 처리 중... (3초 지연)");
 
-    const call = bridgeRef.current as unknown as Record<string, () => Promise<unknown>>;
-
-    try {
-      const pong = await call.ping?.();
-      console.log("[bridge] ping:", pong);
-    } catch (e) {
-      console.error("[bridge] ping error:", e);
-      setStatus("브릿지 연결 안 됨 (WebView 내부에서 열렸는지 확인)");
-      return;
-    }
+    // 1) 호출: 네이티브 메서드 실행
+    const call = bridgeRef.current as unknown as Record<
+      string,
+      () => Promise<unknown>
+    >;
 
     let raw: unknown;
+    // 호출 시도
     try {
+      // 'requestInfo' 메서드 호출
       raw = await call.requestInfo?.();
-      console.log("[bridge] raw response (original):", raw, " typeof:", typeof raw);
     } catch (e) {
-      console.error("[bridge] call error:", e);
       setStatus("브릿지 호출 실패");
       return;
     }
 
-    // 4) 응답 정규화 + 검증
+    // 2) 정규화: 문자열 → 객체
     const normalized = normalizeRaw(raw);
-    console.log("[bridge] normalized:", normalized);
-
     const parsed = ResponseSchema.safeParse(normalized);
     if (!parsed.success) {
-      console.error("[bridge] parse error:", parsed.error.flatten());
       setStatus("응답 형식 오류 (콘솔 로그 확인)");
       return;
     }
 
+    // 3) 결과 처리
     const data = "data" in parsed.data ? parsed.data.data : parsed.data;
     setNetwork(data.network);
     setNumber(data.number);
@@ -91,15 +86,19 @@ export default function BridgePage() {
   return (
     <main className="p-4 font-sans">
       <div className="mb-3 rounded-lg bg-zinc-100 px-3 py-2 font-semibold">
-        🌐 이 영역은 <b>WebView(웹)</b> UI입니다
+        <b>WebView(웹)</b> UI입니다
       </div>
 
-      <h3 className="text-lg font-semibold">웹 ↔ 네이티브 브릿지 (네트워크 + 숫자)</h3>
+      <h3 className="text-lg font-semibold">
+        웹 ↔ 네이티브 브릿지 (네트워크 + 숫자)
+      </h3>
 
       <button
         onClick={onClick}
         disabled={!ready}
-        className={`mt-3 rounded-lg px-4 py-3 text-white ${ready ? "bg-black" : "bg-zinc-400 cursor-not-allowed"}`}
+        className={`mt-3 rounded-lg px-4 py-3 text-white ${
+          ready ? "bg-black" : "bg-zinc-400 cursor-not-allowed"
+        }`}
       >
         네이티브에 요청하기
       </button>
