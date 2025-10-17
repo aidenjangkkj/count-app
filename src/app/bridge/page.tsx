@@ -1,4 +1,4 @@
-// app/bridge/page.tsx  (Next.js App Router)
+// app/bridge/page.tsx
 "use client";
 
 import React, { useState } from "react";
@@ -26,7 +26,6 @@ export default function BridgePage() {
 
   const onClick = async () => {
     setStatus("네이티브 처리 중... (3초 지연)");
-    // 타입 공유가 없으므로 런타임 검증으로 가드
     const raw = await (bridge as unknown as Record<string, () => Promise<unknown>>).requestInfo();
     const parsed = ResponseSchema.safeParse(raw);
 
@@ -41,29 +40,32 @@ export default function BridgePage() {
   };
 
   return (
-    <main style={{ padding: 16, fontFamily: "system-ui, -apple-system" }}>
-      <div style={{ padding: 8, borderRadius: 8, background: "#f4f4f5", fontWeight: 600, marginBottom: 12 }}>
+    <main className="p-4 font-sans">
+      <div className="mb-3 rounded-lg bg-zinc-100 px-3 py-2 font-semibold">
         🌐 이 영역은 <b>WebView(웹)</b> UI입니다
       </div>
 
-      <h3>웹 ↔ 네이티브 브릿지 (네트워크 + 숫자)</h3>
+      <h3 className="text-lg font-semibold">웹 ↔ 네이티브 브릿지 (네트워크 + 숫자)</h3>
+
       <button
         onClick={onClick}
-        style={{ padding: "12px 16px", borderRadius: 8, background: "#111", color: "#fff", border: 0 }}
+        className="mt-3 rounded-lg bg-black px-4 py-3 text-white"
       >
         네이티브에 요청하기
       </button>
 
-      <div style={{ border: "1px solid #e5e5e5", borderRadius: 12, padding: 12, marginTop: 12 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", margin: "6px 0" }}>
-          <div style={{ color: "#666" }}>네트워크 상태</div>
-          <div style={{ fontWeight: 600 }}>{network}</div>
+      <div className="mt-3 rounded-xl border border-zinc-200 p-3">
+        <div className="my-1 flex justify-between">
+          <div className="text-zinc-600">네트워크 상태</div>
+          <div className="font-semibold">{network}</div>
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", margin: "6px 0" }}>
-          <div style={{ color: "#666" }}>랜덤 숫자</div>
-          <div style={{ fontWeight: 600 }}>{number}</div>
+
+        <div className="my-1 flex justify-between">
+          <div className="text-zinc-600">랜덤 숫자</div>
+          <div className="font-semibold">{number}</div>
         </div>
-        <div style={{ color: "#888", fontSize: 12, marginTop: 6 }}>{status}</div>
+
+        <div className="mt-1 text-xs text-zinc-500">{status}</div>
       </div>
     </main>
   );
