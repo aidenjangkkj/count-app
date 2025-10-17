@@ -1,17 +1,18 @@
+// app/bridge/page.tsx
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { linkBridge } from "@webview-bridge/web";
 import { z } from "zod";
 
-// 1) 응답 래퍼/타입 편차까지 허용하는 스키마
+// 런타임 결과 검증 스키마
 const BaseSchema = z.object({
   network: z.string(),
-  number: z.coerce.number().int().min(1), // "42"도 42로 캐스팅
+  number: z.coerce.number().int().min(1),
 });
 const ResponseSchema = z.union([
-  BaseSchema,                          // { network, number }
-  z.object({ data: BaseSchema }),      // { data: { network, number } }
+  BaseSchema,
+  z.object({ data: BaseSchema }),
 ]).transform((v) => ("data" in v ? v.data : v));
 
 export default function BridgePage() {
@@ -20,20 +21,36 @@ export default function BridgePage() {
   const [number, setNumber] = useState<string | number>("-");
   const [ready, setReady] = useState(false);
 
-  const bridge = linkBridge({
-    onReady: () => {
-      console.log("[bridge] ready");
-      setReady(true);
-    },
-  });
+  // ✅ 브릿지를 한 번만 생성
+  const bridgeRef = useRef<ReturnType<typeof linkBridge> | null>(null);
+  useEffect(() => {
+    // SSR 회피: 클라이언트에서만 생성
+    bridgeRef.current = linkBridge({
+      onReady: () => {
+        console.log("[bridge] ready");
+        setReady(true); // 여기서 setState OK (1회)
+      },
+    });
+
+    // 선택: 언마운트 시 정리(필요 시)
+    return () => {
+      bridgeRef.current = null;
+    };
+  }, []);
 
   const onClick = async () => {
+    if (!bridgeRef.current) {
+      setStatus("브릿지가 아직 준비되지 않았습니다.");
+      return;
+    }
+
     setStatus("네이티브 처리 중... (3초 지연)");
 
-    // 2) 실제 응답 살펴보기 (디버깅)
     let raw: unknown;
     try {
-      raw = await (bridge as unknown as Record<string, () => Promise<unknown>>).requestInfo();
+      // ✅ 매 렌더마다 새 인스턴스 생성하지 않고 ref 사용
+      const call = bridgeRef.current as unknown as Record<string, () => Promise<unknown>>;
+      raw = await call.requestInfo();
       console.log("[bridge] raw response:", raw);
     } catch (e) {
       console.error("[bridge] call error:", e);
@@ -41,7 +58,6 @@ export default function BridgePage() {
       return;
     }
 
-    // 3) 강화된 파서로 검증/정규화
     const parsed = ResponseSchema.safeParse(raw);
     if (!parsed.success) {
       console.error("[bridge] parse error:", parsed.error.flatten());
@@ -80,7 +96,7 @@ export default function BridgePage() {
         </div>
         <div className="my-1 flex justify-between">
           <div className="text-zinc-600">랜덤 숫자</div>
-        <div className="font-semibold">{number}</div>
+          <div className="font-semibold">{number}</div>
         </div>
         <div className="mt-1 text-xs text-zinc-500">{status}</div>
       </div>
